@@ -17,13 +17,15 @@ r22 - variável auxiliar para testar os limites inferior e superior
 # Endereços base dos LEDs vermelhos e dos Switches
 .equ RED_LEDS, 0x10000000         # Endereço dos LEDs vermelhos
 .equ SWITCHES, 0x10000040         # Endereço dos switches
+.equ TIMER,		0X10002000	# Endereço do temporizador
 
 # Constantes para temporizador
 .equ FREQUENCY, 27000000          # Frequência do sistema em Hz
 .equ DELAY_MS, 60                 # Atraso em milissegundos (testado na placa, gera aprox 200 ms de delay)
 .equ TICKS, (FREQUENCY / 1000) * DELAY_MS # Ticks para 200ms
 
-/*
+.equ TICKS2, (FREQUENCY / 5)	# Ticks para 200ms
+
 # Área de interrupções
 .org    0x20
 RTI:
@@ -33,6 +35,12 @@ RTI:
 
     # Tratamento
 
+ 	# Confere se a interrupção é do timer
+  	andi	r22,	et,	0b1
+	beq		r22,	r0,	OTHER_INTERRUPTS	# mudar para lidar com outros tipos de interrupção
+	call	ANIMALEDS_INTERRUPT
+ 	br		END_HANDLER		# avaliar se os dados estão sendo devidamente recuperados
+ 
     # Fim tratamento
 
     andi    r13,    et,     2
@@ -51,7 +59,7 @@ EXT_IRQ1:
     ret
 
 
-.org    0x500   */
+.org    0x500
 .global ANIMALEDS
 
 /*
@@ -100,8 +108,24 @@ EXT_IRQ1:
     
  */
 ANIMALEDS:
-    
-loop:
+
+	# Configurando o temporizador
+ 	movia	r16,	TIMER
+	movia	r17,	TICKS2	# 1/5 segundos
+ 	stwio	r17,	8(r16)	#	0x10002008 - valor baixo
+  	srli	r17,	r17,	16
+	stwio	r17,	12(r16)	#	0x1000200C - valor alto
+
+ 	# Iniciando timer e permitindo suas interrupções
+  	movi	r17,	0b0111	#	START=1, CONT=1, ITO=1
+   	sthio	r17,	4(r16)
+
+ 	# Habilitando interrupções
+  	addi	r17,	r0,	1	#	máscara de interrupção para intervalo do temporizador
+   	wrctl	ienable,	r17
+	wrctl	status,		r17
+
+ANIMALEDS_INTERRUPT:
     bne r4, r0, end                 # Representa implementação em memória caso receba sinal de parada
 
     movia r17, RED_LEDS			    # Inicializando LEDs
@@ -143,15 +167,6 @@ move_right:
 
     br      delay
 
-
-# Função de atraso de 200 ms
-delay:
-    movia r21, TICKS              # Carrega o número de ticks
-delay_loop:
-    subi r21, r21, 1              # Decrementa o contador
-    bne r21, r0, delay_loop       # Continua até que r1 seja zero
-	
-    br loop
 
 end:
     ret                             # Retorna da chamada
