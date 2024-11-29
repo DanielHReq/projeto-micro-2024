@@ -20,7 +20,7 @@ r22 - variável auxiliar para testar os limites inferior e superior
 .equ TIMER,		0X10002000	# Endereço do temporizador
 
 # Constantes para temporizador
-.equ FREQUENCY, 27000000          # Frequência do sistema em Hz
+.equ FREQUENCY, 270000000          # Frequência do sistema em Hz
 .equ DELAY_MS, 60                 # Atraso em milissegundos (testado na placa, gera aprox 200 ms de delay)
 .equ TICKS, (FREQUENCY / 1000) * DELAY_MS # Ticks para 200ms
 
@@ -43,8 +43,8 @@ RTI:
  
     # Fim tratamento
 
-    andi    r13,    et,     2
-    beq     r13,    r0,     OTHER_INTERRUPTS
+    andi    r22,    et,     2
+    beq     r22,    r0,     OTHER_INTERRUPTS
     # call  EXT_IRQ1
 OTHER_INTERRUPTS:
     br      END_HANDLER
@@ -61,6 +61,38 @@ EXT_IRQ1:
 
 .org    0x500
 .global ANIMALEDS
+
+/*
+
+    Inicia a animação, ou a encerra
+
+    Para iniciar:
+        Configura o temporizador
+    
+    Para encerrar:
+        Muda a configuração do temporizador para que CONT=0
+    
+*/
+ANIMALEDS:
+
+	# Configurando o temporizador
+ 	movia	r16,	TIMER
+	movia	r17,	TICKS2	# 1/5 segundos
+ 	stwio	r17,	8(r16)	#	0x10002008 - valor baixo
+  	srli	r17,	r17,	16
+	stwio	r17,	12(r16)	#	0x1000200C - valor alto
+
+ 	# Iniciando timer e permitindo suas interrupções
+  	movi	r17,	0b0111	#	START=1, CONT=1, ITO=1
+   	sthio	r17,	4(r16)
+
+ 	# Habilitando interrupções
+  	addi	r17,	r0,	1	#	máscara de interrupção para intervalo do temporizador
+   	wrctl	ienable,	r17
+    movi    r17,    1
+	wrctl	status,		r17
+
+    br end
 
 /*
 
@@ -106,26 +138,30 @@ EXT_IRQ1:
         se 0, iniciar animação
         senão, parar animação
     
+
+    OBS:    é necessário salvar os registradores no início da subrotina
+            e recuperá-los ao final
+
  */
-ANIMALEDS:
-
-	# Configurando o temporizador
- 	movia	r16,	TIMER
-	movia	r17,	TICKS2	# 1/5 segundos
- 	stwio	r17,	8(r16)	#	0x10002008 - valor baixo
-  	srli	r17,	r17,	16
-	stwio	r17,	12(r16)	#	0x1000200C - valor alto
-
- 	# Iniciando timer e permitindo suas interrupções
-  	movi	r17,	0b0111	#	START=1, CONT=1, ITO=1
-   	sthio	r17,	4(r16)
-
- 	# Habilitando interrupções
-  	addi	r17,	r0,	1	#	máscara de interrupção para intervalo do temporizador
-   	wrctl	ienable,	r17
-	wrctl	status,		r17
-
 ANIMALEDS_INTERRUPT:
+
+    # Salvar registradores
+    subi    sp, sp, 32  #   reserva espaço
+    stw     ra, 0(sp)
+    stw     fp, 4(sp)
+    stw     r16,    8(sp)
+    stw     r17,    12(sp)
+    stw     r18,    16(sp)
+    stw     r19,    20(sp)
+    stw     r20,    24(sp)
+    stw     r21,    28(sp)
+
+
+    # Reset no Status (TO) do temporizador
+    movia	r16,	TIMER
+    addi    r17,    r0, 1
+ 	stwio	r17,	0(r16)	#	0x10002000 - valor baixo
+
     bne r4, r0, end                 # Representa implementação em memória caso receba sinal de parada
 
     movia r17, RED_LEDS			    # Inicializando LEDs
@@ -139,8 +175,8 @@ ANIMALEDS_INTERRUPT:
 
 
 move_left:
-    movi    r22,    0x20000         #   Máscara: 18º LED HIGH, resto LOW
-    and     r16,    r20,    r22     #   and de estado dos leds com a máscara
+    movi    r21,    0x20000         #   Máscara: 18º LED HIGH, resto LOW
+    and     r16,    r20,    r21     #   and de estado dos leds com a máscara
 
     srli    r16,    r16,    17      #   Move total_de_LEDs - 1 para a direita
 
@@ -150,12 +186,12 @@ move_left:
 
     stwio   r20,    0(r17)          #   Atualiza LEDs
 
-    br      delay
+    br      END_ANIMALEDS_INTERRUPT
 
 
 move_right:
-    movi    r22,    0x1             #   Máscara: 1º LED HIGH, resto LOW
-    and     r16,    r20,    r22     #   and de estado dos leds com a máscara
+    movi    r21,    0x1             #   Máscara: 1º LED HIGH, resto LOW
+    and     r16,    r20,    r21     #   and de estado dos leds com a máscara
 
     slli    r16,    r16,    17      #   Move total_de_LEDs - 1 para a esquerda
 
@@ -165,8 +201,20 @@ move_right:
 
     stwio   r20,    0(r17)          #   Atualiza LEDs
 
-    br      delay
 
+END_ANIMALEDS_INTERRUPT:
+
+    # Recuperar registradores
+    ldw     ra, 0(sp)
+    ldw     fp, 4(sp)
+    ldw     r16,    8(sp)
+    ldw     r17,    12(sp)
+    ldw     r18,    16(sp)
+    ldw     r19,    20(sp)
+    ldw     r20,    24(sp)
+    ldw     r21,    28(sp)
+
+    addi    sp, sp, 32  # libera espaço
 
 end:
     ret                             # Retorna da chamada

@@ -35,11 +35,22 @@ _start:
 loop:
     # Lê o primeiro caractere (comando principal)
     ldwio   r13, 0(r8)          # Lê o primeiro caractere (comando)
-    andi    r13, r13, 0xFF        # Máscara para manter os 8 bits
-    mov     r14, r13              # Armazena o primeiro dígito do comando em r14
 
+    andi    r16, r13, 0x8000
+    beq     r16, r0, loop
+
+    andi    r13, r13, 0xFF        # Máscara para manter os 8 bits
+
+
+    mov     r14, r13              # Armazena o primeiro dígito do comando em r14
+loop2:
     # Lê o segundo caractere (comando específico)
     ldwio   r13, 0(r8)          # Lê o segundo caractere (comando específico)
+    
+    andi    r16, r13, 0x8000
+    beq     r16, r0, loop2
+
+
     andi    r13, r13, 0xFF
     mov     r15, r13              # Armazena o segundo dígito do comando em r15
 
