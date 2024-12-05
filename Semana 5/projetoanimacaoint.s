@@ -74,9 +74,18 @@ EXT_IRQ1:
     
 */
 ANIMALEDS:
-
+	# Temporizador
+	movia	r16,	TIMER
+ 
+	# Tratamento para finalizar animação, se r4 = 1
+	beq r4, r0, ANIMALEDS_INICIA
+ANIMALEDS_PARA:
+	# Set STOP de timer
+  	movi	r17,	0b1000	#	STOP=1, START=0, CONT=0, ITO=0
+   	sthio	r17,	4(r16)
+    	br end
+ANIMALEDS_INICIA:
 	# Configurando o temporizador
- 	movia	r16,	TIMER
 	movia	r17,	TICKS2	# 1/5 segundos
  	stwio	r17,	8(r16)	#	0x10002008 - valor baixo
   	srli	r17,	r17,	16
@@ -162,7 +171,7 @@ ANIMALEDS_INTERRUPT:
     addi    r17,    r0, 1
  	stwio	r17,	0(r16)	#	0x10002000 - valor baixo
 
-    bne r4, r0, end                 # Representa implementação em memória caso receba sinal de parada
+    # bne r4, r0, end                 # Representa implementação em memória caso receba sinal de parada
 
     movia r17, RED_LEDS			    # Inicializando LEDs
     ldwio r20, 0(r17)               # Lê o estado dos leds
